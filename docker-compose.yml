@@ -1,0 +1,18 @@
+services:
+  shredder-node-monitor:
+    container_name: shredder-node-monitor
+    restart: unless-stopped
+    image: shredder-node-monitor:v0.1
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    volumes:
+      - ./nodes.yaml:/app/nodes.yaml:ro
+      - ~/.ssh:/root/.ssh:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"

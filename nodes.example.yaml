@@ -1,0 +1,32 @@
+nodes:
+  - name: pl
+    host: pl.orpheous.ru
+    remnawave_name: pl
+    ports:
+      - 80
+      - 2222
+      - 443
+    http_checks:
+      - name: fallback-http
+        url: http://pl.orpheous.ru/
+        expect_status: 204
+    ssh:
+      enabled: true
+      host: nodehost.pl
+      xray_required: true
+
+  - name: ru6
+    host: ru6.orpheous.ru
+    remnawave_name: ru6
+    ports:
+      - 80
+      - 2222
+      - 443
+    http_checks:
+      - name: fallback-http
+        url: http://ru6.orpheous.ru/
+        expect_status: 200
+    ssh:
+      enabled: true
+      host: ru6
+      xray_required: true
