@@ -91,6 +91,8 @@ class Settings:
                 "MI_VPN_BOT_TOKEN",
             ),
             telegram_chat_ids=_get_int_list(
+                "NODE_MONITOR_TELEGRAM_PEER_IDS",
+                "NODE_MONITOR_TELEGRAM_RECIPIENT_IDS",
                 "NODE_MONITOR_TELEGRAM_CHAT_IDS",
                 "NODE_MONITOR_TELEGRAM_CHAT_ID",
             ),
