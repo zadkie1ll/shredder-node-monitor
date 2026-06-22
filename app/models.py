@@ -37,6 +37,7 @@ class NodeConfig:
     remnawave_name: str | None = None
     remnawave_uuid: str | None = None
     ports: list[PortCheckConfig] = field(default_factory=list)
+    ignore_generated_ports: list[int] = field(default_factory=list)
     http_checks: list[HttpCheckConfig] = field(default_factory=list)
     ssh: SshCheckConfig = field(default_factory=SshCheckConfig)
     skip: bool = False
@@ -48,6 +49,7 @@ class CheckResult:
     ok: bool
     detail: str
     latency_ms: int | None = None
+    severity: str = "error"
 
 
 @dataclass(frozen=True)
@@ -56,6 +58,14 @@ class NodeReport:
     ok: bool
     checks: list[CheckResult]
     remnawave: dict[str, Any] | None = None
+
+    @property
+    def hard_ok(self) -> bool:
+        return all(check.ok for check in self.checks if check.severity == "error")
+
+    @property
+    def has_warning(self) -> bool:
+        return any(not check.ok and check.severity == "warning" for check in self.checks)
 
 
 @dataclass(frozen=True)
@@ -74,4 +84,4 @@ class MonitorReport:
 
     @property
     def ok(self) -> bool:
-        return all(node.ok for node in self.nodes)
+        return all(node.hard_ok for node in self.nodes)

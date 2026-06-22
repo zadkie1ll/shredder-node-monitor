@@ -130,8 +130,11 @@ class NodeMonitorBot:
         message_id: int | None = None,
     ) -> None:
         nodes = await self._load_nodes()
-        text = _format_nodes_menu(nodes)
-        keyboard = _nodes_keyboard(nodes)
+        panel_nodes = {}
+        if self._remnawave_client is not None:
+            panel_nodes, _ = await self._remnawave_client.fetch_nodes()
+        text = _format_nodes_menu(nodes, panel_nodes)
+        keyboard = _nodes_keyboard(nodes, panel_nodes)
         if message_id is not None:
             ok = await self._api.edit_message_text(
                 chat_id=chat_id,
@@ -147,20 +150,29 @@ class NodeMonitorBot:
         return isinstance(chat_id, int) and chat_id in self._allowed_chat_ids
 
 
-def _format_nodes_menu(nodes) -> str:
-    lines = ["<b>Выбери ноду для диагностики</b>"]
+def _format_nodes_menu(nodes, panel_nodes: dict) -> str:
+    lines = [
+        "<b>Выбери ноду для диагностики</b>",
+        "🟢 connected · 🟡 connecting/offline · 🔴 disabled",
+        "",
+    ]
     for index, node in enumerate(nodes, start=1):
-        lines.append(f"{index}. <b>{escape(node.name)}</b> <code>{escape(node.host)}</code>")
+        state = _panel_state(node, panel_nodes)
+        lines.append(
+            f"{index}. {state} <b>{escape(node.name)}</b>\n"
+            f"   <code>{escape(node.host)}</code>"
+        )
     return "\n".join(lines)
 
 
-def _nodes_keyboard(nodes) -> dict:
+def _nodes_keyboard(nodes, panel_nodes: dict) -> dict:
     rows = []
     current = []
     for index, node in enumerate(nodes):
+        state = _panel_state(node, panel_nodes)
         current.append(
             {
-                "text": f"{index + 1}. {node.name[:22]}",
+                "text": f"{index + 1}. {state} {node.name[:18]}",
                 "callback_data": f"node:{index}",
             }
         )
@@ -182,3 +194,15 @@ def _node_detail_keyboard(index: int) -> dict:
             ]
         ]
     }
+
+
+def _panel_state(node, panel_nodes: dict) -> str:
+    for key in (node.remnawave_name, node.name, node.host, node.remnawave_uuid):
+        if key and key.lower() in panel_nodes:
+            panel = panel_nodes[key.lower()]
+            if panel.get("isDisabled"):
+                return "🔴"
+            if panel.get("isConnected"):
+                return "🟢"
+            return "🟡"
+    return "⚪"

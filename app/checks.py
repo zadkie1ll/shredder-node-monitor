@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import shutil
 import time
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -57,8 +60,10 @@ class NodeChecker:
         host = node.ssh.host or node.host
         command = node.ssh.command or "true"
         started = time.monotonic()
+        ssh_args = self._ssh_file_args()
         process = await asyncio.create_subprocess_exec(
             "ssh",
+            *ssh_args,
             "-o",
             f"ConnectTimeout={min(node.ssh.timeout_seconds, 10)}",
             "-o",
@@ -99,6 +104,27 @@ class NodeChecker:
             detail=_compact(combined or f"exit={process.returncode}", self._detail_limit),
             latency_ms=_elapsed_ms(started),
         )
+
+    def _ssh_file_args(self) -> list[str]:
+        args: list[str] = []
+
+        config = _copy_ssh_file(
+            source=Path("/root/.ssh/config"),
+            target=Path("/tmp/shredder-node-monitor-ssh-config"),
+            mode=0o600,
+        )
+        if config:
+            args.extend(["-F", str(config)])
+
+        key = _copy_ssh_file(
+            source=Path("/root/.ssh/id_ed25519"),
+            target=Path("/tmp/shredder-node-monitor-id_ed25519"),
+            mode=0o600,
+        )
+        if key:
+            args.extend(["-i", str(key)])
+
+        return args
 
     def _check_http_sync(self, config: HttpCheckConfig) -> CheckResult:
         started = time.monotonic()
@@ -153,3 +179,16 @@ def _compact(value: str, limit: int = 500) -> str:
     if len(value) <= limit:
         return value
     return value[: limit - 1] + "…"
+
+
+def _copy_ssh_file(source: Path, target: Path, mode: int) -> Path | None:
+    if not source.exists():
+        return None
+
+    try:
+        if not target.exists() or source.stat().st_mtime > target.stat().st_mtime:
+            shutil.copyfile(source, target)
+        os.chmod(target, mode)
+        return target
+    except OSError:
+        return source

@@ -49,7 +49,7 @@ class Monitor:
             ]
         return NodeReport(
             node=node,
-            ok=all(check.ok for check in checks),
+            ok=all(check.ok for check in checks if check.severity == "error"),
             checks=checks,
             remnawave=remnawave,
         )
@@ -73,8 +73,10 @@ def _remnawave_check(node: dict, fail_on_disconnected: bool) -> CheckResult:
     connecting = node.get("isConnecting")
     status_message = node.get("lastStatusMessage")
     ok = not disabled
-    if fail_on_disconnected:
-        ok = ok and connected is True
+    severity = "error"
+    if fail_on_disconnected and connected is not True:
+        ok = False
+        severity = "warning"
 
     detail = (
         f"isConnected={connected} "
@@ -83,4 +85,9 @@ def _remnawave_check(node: dict, fail_on_disconnected: bool) -> CheckResult:
     )
     if status_message:
         detail += f" message={status_message}"
-    return CheckResult(name="remnawave", ok=ok, detail=detail)
+    return CheckResult(
+        name="remnawave",
+        ok=ok,
+        detail=detail,
+        severity=severity,
+    )

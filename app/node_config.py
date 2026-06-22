@@ -64,6 +64,7 @@ def _parse_node(raw: dict[str, Any]) -> NodeConfig:
         remnawave_name=_optional_str(raw, "remnawave_name"),
         remnawave_uuid=_optional_str(raw, "remnawave_uuid"),
         ports=ports,
+        ignore_generated_ports=_parse_int_list(raw.get("ignore_generated_ports", [])),
         http_checks=http_checks,
         ssh=ssh,
         skip=bool(raw.get("skip", False)),
@@ -105,6 +106,9 @@ def nodes_from_remnawave(
         http_checks: list[HttpCheckConfig] = []
         ssh = SshCheckConfig()
         if override:
+            if override.ignore_generated_ports:
+                ignored = set(override.ignore_generated_ports)
+                ports = [port for port in ports if port.port not in ignored]
             ports = _merge_ports(ports, override.ports, default_host=host)
             http_checks = override.http_checks
             ssh = override.ssh
@@ -116,6 +120,9 @@ def nodes_from_remnawave(
                 remnawave_name=name,
                 remnawave_uuid=uuid,
                 ports=ports,
+                ignore_generated_ports=(
+                    override.ignore_generated_ports if override else []
+                ),
                 http_checks=http_checks,
                 ssh=ssh,
             )
@@ -148,6 +155,14 @@ def _parse_http(raw: dict[str, Any]) -> HttpCheckConfig:
         ),
         timeout_seconds=float(raw.get("timeout_seconds", 10.0)),
     )
+
+
+def _parse_int_list(raw: Any) -> list[int]:
+    if raw in (None, ""):
+        return []
+    if not isinstance(raw, list):
+        raise ValueError("ignore_generated_ports must be a list")
+    return [int(item) for item in raw]
 
 
 def _parse_ssh(raw: dict[str, Any]) -> SshCheckConfig:

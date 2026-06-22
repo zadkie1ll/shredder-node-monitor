@@ -18,6 +18,8 @@ nodes:
   - name: YDX CDN #1
     host: 201.51.9.71
     remnawave_name: YDX CDN #1
+    ignore_generated_ports:
+      - 10085
     ports:
       - name: fallback-http-port
         host: ru6.orpheous.ru
