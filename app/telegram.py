@@ -12,10 +12,12 @@ class TelegramNotifier:
         self,
         bot_token: str,
         chat_ids: list[int],
+        message_thread_id: int | None = None,
         timeout_seconds: int = 15,
     ) -> None:
         self._api = TelegramBotApi(bot_token=bot_token, timeout_seconds=timeout_seconds)
         self._chat_ids = chat_ids
+        self._message_thread_id = message_thread_id
 
     async def send(self, text: str) -> int:
         sent = 0
@@ -25,7 +27,11 @@ class TelegramNotifier:
             for index, chunk in enumerate(chunks, start=1):
                 if len(chunks) > 1:
                     chunk = f"<b>Part {index}/{len(chunks)}</b>\n\n{chunk}"
-                ok = await self._api.send_message(chat_id=chat_id, text=chunk)
+                ok = await self._api.send_message(
+                    chat_id=chat_id,
+                    text=chunk,
+                    message_thread_id=self._message_thread_id,
+                )
                 chat_ok = chat_ok and ok
             if chat_ok:
                 sent += 1
@@ -53,8 +59,11 @@ class TelegramBotApi:
         chat_id: int,
         text: str,
         reply_markup: dict | None = None,
+        message_thread_id: int | None = None,
     ) -> bool:
         payload = _message_payload(chat_id, text)
+        if message_thread_id is not None:
+            payload["message_thread_id"] = message_thread_id
         if reply_markup:
             payload["reply_markup"] = reply_markup
         result = await asyncio.to_thread(self._request, "sendMessage", payload)

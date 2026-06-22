@@ -41,6 +41,7 @@ async def run(settings: Settings) -> None:
         notifier = TelegramNotifier(
             bot_token=settings.telegram_bot_token or "",
             chat_ids=settings.telegram_chat_ids,
+            message_thread_id=settings.telegram_message_thread_id,
         )
 
     log.info(

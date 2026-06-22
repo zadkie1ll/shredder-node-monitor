@@ -23,6 +23,7 @@ class NodeMonitorBot:
         self._load_nodes = load_nodes
         self._remnawave_client = remnawave_client
         self._allowed_chat_ids = set(settings.telegram_chat_ids)
+        self._message_thread_id = settings.telegram_message_thread_id
         self._log = logging.getLogger(self.__class__.__name__)
         self._offset: int | None = None
 
@@ -67,11 +68,13 @@ class NodeMonitorBot:
                     "/status - то же самое\n"
                     "Нажми на ноду, чтобы получить подробную диагностику."
                 ),
+                message_thread_id=self._message_thread_id,
             )
         else:
             await self._api.send_message(
                 chat_id=chat_id,
                 text="Напиши /nodes, чтобы выбрать сервер для диагностики.",
+                message_thread_id=self._message_thread_id,
             )
 
     async def _handle_callback(self, callback: dict) -> None:
@@ -104,7 +107,11 @@ class NodeMonitorBot:
 
         nodes = await self._load_nodes()
         if index < 0 or index >= len(nodes):
-            await self._api.send_message(chat_id, "Нода не найдена, обнови список /nodes")
+            await self._api.send_message(
+                chat_id,
+                "Нода не найдена, обнови список /nodes",
+                message_thread_id=self._message_thread_id,
+            )
             return
 
         node = nodes[index]
@@ -122,6 +129,7 @@ class NodeMonitorBot:
             chat_id=chat_id,
             text=text,
             reply_markup=_node_detail_keyboard(index),
+            message_thread_id=self._message_thread_id,
         )
 
     async def _send_nodes_menu(
@@ -144,7 +152,12 @@ class NodeMonitorBot:
             )
             if ok:
                 return
-        await self._api.send_message(chat_id=chat_id, text=text, reply_markup=keyboard)
+        await self._api.send_message(
+            chat_id=chat_id,
+            text=text,
+            reply_markup=keyboard,
+            message_thread_id=self._message_thread_id,
+        )
 
     def _is_allowed(self, chat_id) -> bool:
         return isinstance(chat_id, int) and chat_id in self._allowed_chat_ids

@@ -30,6 +30,16 @@ def _get_int(name: str, default: int) -> int:
         raise ValueError(f"{name} must be an integer") from exc
 
 
+def _get_optional_int(name: str) -> int | None:
+    value = os.getenv(name)
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer") from exc
+
+
 def _get_bool(name: str, default: bool = False) -> bool:
     value = os.getenv(name)
     if value in (None, ""):
@@ -70,6 +80,7 @@ class Settings:
     remnawave_fail_on_disconnected: bool
     telegram_bot_token: str | None
     telegram_chat_ids: list[int]
+    telegram_message_thread_id: int | None
     remnawave_url: str | None
     remnawave_bearer: str | None
     remnawave_nodes_endpoint: str
@@ -100,6 +111,9 @@ class Settings:
                 "NODE_MONITOR_TELEGRAM_RECIPIENT_IDS",
                 "NODE_MONITOR_TELEGRAM_CHAT_IDS",
                 "NODE_MONITOR_TELEGRAM_CHAT_ID",
+            ),
+            telegram_message_thread_id=_get_optional_int(
+                "NODE_MONITOR_TELEGRAM_THREAD_ID"
             ),
             remnawave_url=_get_first_str(
                 "NODE_MONITOR_REMNAWAVE_URL",
