@@ -43,14 +43,19 @@ def _get_int_list(*names: str) -> list[int]:
         return []
 
     values: list[int] = []
+    seen: set[int] = set()
     for item in raw.split(","):
         item = item.strip()
         if not item:
             continue
         try:
-            values.append(int(item))
+            value = int(item)
         except ValueError as exc:
             raise ValueError(f"{names[0]} must contain Telegram chat ids") from exc
+        if value in seen:
+            continue
+        values.append(value)
+        seen.add(value)
     return values
 
 
