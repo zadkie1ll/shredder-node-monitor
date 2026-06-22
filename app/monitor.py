@@ -15,11 +15,12 @@ class Monitor:
         nodes: list[NodeConfig],
         remnawave_client: RemnawaveClient | None = None,
         fail_on_remnawave_disconnected: bool = True,
+        detail_limit: int = 500,
     ) -> None:
         self._nodes = nodes
         self._remnawave_client = remnawave_client
         self._fail_on_remnawave_disconnected = fail_on_remnawave_disconnected
-        self._checker = NodeChecker()
+        self._checker = NodeChecker(detail_limit=detail_limit)
         self._log = logging.getLogger(self.__class__.__name__)
 
     async def collect(self) -> MonitorReport:

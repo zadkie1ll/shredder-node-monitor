@@ -14,10 +14,8 @@ class TelegramNotifier:
         chat_ids: list[int],
         timeout_seconds: int = 15,
     ) -> None:
-        self._bot_token = bot_token
+        self._api = TelegramBotApi(bot_token=bot_token, timeout_seconds=timeout_seconds)
         self._chat_ids = chat_ids
-        self._timeout_seconds = timeout_seconds
-        self._log = logging.getLogger(self.__class__.__name__)
 
     async def send(self, text: str) -> int:
         sent = 0
@@ -27,21 +25,68 @@ class TelegramNotifier:
             for index, chunk in enumerate(chunks, start=1):
                 if len(chunks) > 1:
                     chunk = f"<b>Part {index}/{len(chunks)}</b>\n\n{chunk}"
-                ok = await asyncio.to_thread(self._send_sync, chat_id, chunk)
+                ok = await self._api.send_message(chat_id=chat_id, text=chunk)
                 chat_ok = chat_ok and ok
             if chat_ok:
                 sent += 1
         return sent
 
-    def _send_sync(self, chat_id: int, text: str) -> bool:
+
+class TelegramBotApi:
+    def __init__(self, bot_token: str, timeout_seconds: int = 30) -> None:
+        self._bot_token = bot_token
+        self._timeout_seconds = timeout_seconds
+        self._log = logging.getLogger(self.__class__.__name__)
+
+    async def get_updates(self, offset: int | None = None, timeout: int = 25):
         payload = {
-            "chat_id": chat_id,
-            "text": text,
-            "parse_mode": "HTML",
-            "disable_web_page_preview": True,
+            "timeout": timeout,
+            "allowed_updates": ["message", "callback_query"],
         }
+        if offset is not None:
+            payload["offset"] = offset
+        result = await asyncio.to_thread(self._request, "getUpdates", payload)
+        return result or []
+
+    async def send_message(
+        self,
+        chat_id: int,
+        text: str,
+        reply_markup: dict | None = None,
+    ) -> bool:
+        payload = _message_payload(chat_id, text)
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
+        result = await asyncio.to_thread(self._request, "sendMessage", payload)
+        return result is not None
+
+    async def edit_message_text(
+        self,
+        chat_id: int,
+        message_id: int,
+        text: str,
+        reply_markup: dict | None = None,
+    ) -> bool:
+        payload = _message_payload(chat_id, text)
+        payload["message_id"] = message_id
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
+        result = await asyncio.to_thread(self._request, "editMessageText", payload)
+        return result is not None
+
+    async def answer_callback_query(
+        self,
+        callback_query_id: str,
+        text: str | None = None,
+    ) -> None:
+        payload = {"callback_query_id": callback_query_id}
+        if text:
+            payload["text"] = text
+        await asyncio.to_thread(self._request, "answerCallbackQuery", payload)
+
+    def _request(self, method: str, payload: dict):
         req = request.Request(
-            f"https://api.telegram.org/bot{self._bot_token}/sendMessage",
+            f"https://api.telegram.org/bot{self._bot_token}/{method}",
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
             method="POST",
@@ -49,13 +94,25 @@ class TelegramNotifier:
         try:
             with request.urlopen(req, timeout=self._timeout_seconds) as response:
                 body = json.loads(response.read().decode("utf-8"))
-                return 200 <= response.status < 300 and body.get("ok") is True
+                if 200 <= response.status < 300 and body.get("ok") is True:
+                    return body.get("result")
+                self._log.warning("telegram %s failed: %s", method, body)
+                return None
         except HTTPError as exc:
-            self._log.warning("telegram send failed: HTTP %s", exc.code)
-            return False
+            self._log.warning("telegram %s failed: HTTP %s", method, exc.code)
+            return None
         except URLError:
-            self._log.exception("telegram send failed")
-            return False
+            self._log.exception("telegram %s failed", method)
+            return None
+
+
+def _message_payload(chat_id: int, text: str) -> dict:
+    return {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True,
+    }
 
 
 def _split_message(text: str, limit: int = 3600) -> list[str]:
@@ -73,8 +130,7 @@ def _split_message(text: str, limit: int = 3600) -> list[str]:
             current_len = 0
 
         if block_len > limit:
-            lines = block.splitlines()
-            for line in lines:
+            for line in block.splitlines():
                 line_len = len(line) + 1
                 if current and current_len + line_len > limit:
                     chunks.append("\n".join(current))

@@ -23,6 +23,58 @@ def format_report(report: MonitorReport, tz_name: str = "Europe/Moscow") -> str:
     return "\n".join(lines)
 
 
+def format_node_detail(
+    report: NodeReport,
+    index: int | None = None,
+    total: int | None = None,
+) -> str:
+    prefix = ""
+    if index is not None and total is not None:
+        prefix = f"#{index + 1}/{total} "
+
+    status = "OK" if report.ok else "FAIL"
+    lines = [
+        f"<b>{prefix}{escape(report.node.name)}: {status}</b>",
+        f"Host: <code>{escape(report.node.host)}</code>",
+    ]
+    if report.node.remnawave_uuid:
+        lines.append(f"UUID: <code>{escape(report.node.remnawave_uuid)}</code>")
+
+    if report.remnawave:
+        lines.append("")
+        lines.append("<b>Remnawave</b>")
+        for key in (
+            "name",
+            "address",
+            "port",
+            "isConnected",
+            "isConnecting",
+            "isDisabled",
+            "lastStatusMessage",
+            "xrayVersion",
+            "nodeVersion",
+            "xrayUptime",
+            "usersOnline",
+            "trafficUsedBytes",
+            "updatedAt",
+        ):
+            value = report.remnawave.get(key)
+            if value is not None:
+                lines.append(f"{key}: <code>{escape(str(value))}</code>")
+
+    lines.append("")
+    lines.append("<b>Checks</b>")
+    for check in report.checks:
+        check_status = "OK" if check.ok else "FAIL"
+        latency = f" ({check.latency_ms}ms)" if check.latency_ms is not None else ""
+        lines.append(
+            f"{check_status} <code>{escape(check.name)}</code>{latency}\n"
+            f"<pre>{escape(check.detail)}</pre>"
+        )
+
+    return "\n".join(lines)
+
+
 def _format_node(report: NodeReport) -> str:
     status = "OK" if report.ok else "FAIL"
     lines = [

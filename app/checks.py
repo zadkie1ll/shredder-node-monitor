@@ -9,6 +9,9 @@ from app.models import CheckResult, HttpCheckConfig, NodeConfig, PortCheckConfig
 
 
 class NodeChecker:
+    def __init__(self, detail_limit: int = 500) -> None:
+        self._detail_limit = detail_limit
+
     async def check_node(self, node: NodeConfig) -> list[CheckResult]:
         tasks: list[asyncio.Task[CheckResult]] = []
         for port in node.ports:
@@ -60,6 +63,10 @@ class NodeChecker:
             f"ConnectTimeout={min(node.ssh.timeout_seconds, 10)}",
             "-o",
             "BatchMode=yes",
+            "-o",
+            "StrictHostKeyChecking=accept-new",
+            "-o",
+            "UserKnownHostsFile=/tmp/shredder-node-monitor-known-hosts",
             host,
             command,
             stdout=asyncio.subprocess.PIPE,
@@ -89,7 +96,7 @@ class NodeChecker:
         return CheckResult(
             name=f"ssh:{host}",
             ok=ok,
-            detail=_compact(combined or f"exit={process.returncode}"),
+            detail=_compact(combined or f"exit={process.returncode}", self._detail_limit),
             latency_ms=_elapsed_ms(started),
         )
 

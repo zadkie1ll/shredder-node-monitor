@@ -68,6 +68,8 @@ class Settings:
     remnawave_url: str | None
     remnawave_bearer: str | None
     remnawave_nodes_endpoint: str
+    telegram_polling_enabled: bool
+    telegram_poll_interval_seconds: int
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -105,6 +107,14 @@ class Settings:
                 "/api/nodes",
             )
             or "/api/nodes",
+            telegram_polling_enabled=_get_bool(
+                "NODE_MONITOR_TELEGRAM_POLLING_ENABLED",
+                True,
+            ),
+            telegram_poll_interval_seconds=_get_int(
+                "NODE_MONITOR_TELEGRAM_POLL_INTERVAL_SECONDS",
+                2,
+            ),
         )
 
     @property

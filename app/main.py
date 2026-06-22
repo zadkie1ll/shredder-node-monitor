@@ -3,12 +3,13 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from app.bot import NodeMonitorBot
 from app.config import Settings
 from app.monitor import Monitor
 from app.node_config import load_node_overrides, load_nodes, nodes_from_remnawave
 from app.remnawave import RemnawaveClient
 from app.report import format_report
-from app.telegram import TelegramNotifier
+from app.telegram import TelegramBotApi, TelegramNotifier
 
 
 def configure_logging(level: str) -> None:
@@ -30,7 +31,10 @@ async def run(settings: Settings) -> None:
             nodes_endpoint=settings.remnawave_nodes_endpoint,
         )
 
-    nodes = await _load_nodes(settings, remnawave, log)
+    async def load_nodes_current():
+        return await _load_nodes(settings, remnawave, log)
+
+    nodes = await load_nodes_current()
 
     notifier = None
     if settings.telegram_enabled:
@@ -39,11 +43,6 @@ async def run(settings: Settings) -> None:
             chat_ids=settings.telegram_chat_ids,
         )
 
-    monitor = Monitor(
-        nodes=nodes,
-        remnawave_client=remnawave,
-        fail_on_remnawave_disconnected=settings.remnawave_fail_on_disconnected,
-    )
     log.info(
         "started node monitor: nodes=%s interval=%ss telegram=%s remnawave=%s",
         len(nodes),
@@ -64,25 +63,52 @@ async def run(settings: Settings) -> None:
             settings.interval_seconds,
         )
 
+    polling_task = None
+    if (
+        settings.telegram_polling_enabled
+        and settings.telegram_enabled
+        and not settings.run_once
+    ):
+        bot = NodeMonitorBot(
+            settings=settings,
+            api=TelegramBotApi(settings.telegram_bot_token or ""),
+            load_nodes=load_nodes_current,
+            remnawave_client=remnawave,
+        )
+        polling_task = asyncio.create_task(bot.run_forever())
+
     first = True
-    while True:
-        if first and not settings.run_on_start and not settings.run_once:
+    try:
+        while True:
+            if first and not settings.run_on_start and not settings.run_once:
+                await asyncio.sleep(settings.interval_seconds)
+            first = False
+
+            nodes = await load_nodes_current()
+            monitor = Monitor(
+                nodes=nodes,
+                remnawave_client=remnawave,
+                fail_on_remnawave_disconnected=(
+                    settings.remnawave_fail_on_disconnected
+                ),
+            )
+            report = await monitor.collect()
+            text = format_report(report)
+            log.info("report collected: ok=%s nodes=%s", report.ok, len(report.nodes))
+
+            if notifier is not None:
+                sent = await notifier.send(text)
+                log.info("telegram report sent to %s chat(s)", sent)
+            else:
+                print(text)
+
+            if settings.run_once:
+                return
             await asyncio.sleep(settings.interval_seconds)
-        first = False
-
-        report = await monitor.collect()
-        text = format_report(report)
-        log.info("report collected: ok=%s nodes=%s", report.ok, len(report.nodes))
-
-        if notifier is not None:
-            sent = await notifier.send(text)
-            log.info("telegram report sent to %s chat(s)", sent)
-        else:
-            print(text)
-
-        if settings.run_once:
-            return
-        await asyncio.sleep(settings.interval_seconds)
+    finally:
+        if polling_task is not None:
+            polling_task.cancel()
+            await asyncio.gather(polling_task, return_exceptions=True)
 
 
 async def _load_nodes(

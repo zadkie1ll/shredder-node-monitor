@@ -6,6 +6,8 @@ Hourly monitor for Remnawave nodes. It sends a compact Telegram report with:
 - HTTP fallback checks;
 - SSH checks for Docker, `remnanode`, and Xray core;
 - optional Remnawave panel status, if the configured API endpoint matches the panel.
+- interactive Telegram polling: `/nodes` shows numbered node buttons; clicking a
+  node runs deeper diagnostics for that exact node.
 
 By default `NODE_MONITOR_RUN_ON_START=true`, so after the container starts it
 sends the first report immediately and only then waits
@@ -38,8 +40,30 @@ docker compose up -d --build
 docker compose logs -f
 ```
 
-The compose file mounts `~/.ssh` read-only so checks can use existing SSH
-aliases like `ru6` or `nodehost.pl`.
+The compose file mounts `./ssh` read-only so checks can use SSH aliases like
+`ru6` or `nodehost.pl`. The deploy script creates that folder on the server.
+
+## Deploy
+
+Deploy to `sh.ydx.ru1` from your Mac:
+
+```bash
+cd /Users/zadkiel/apps/shredder-node-monitor
+./scripts/deploy.sh
+```
+
+The script uploads project files, local `.env`, local `nodes.yaml`,
+`~/.ssh/id_ed25519`, `~/.ssh/id_ed25519.pub`, and `~/.ssh/config`, then runs:
+
+```bash
+docker compose up -d --build
+```
+
+Default remote directory:
+
+```text
+/home/stasrised/shredder-node-monitor
+```
 
 ## Environment
 
@@ -52,6 +76,9 @@ NODE_MONITOR_NODES_CONFIG=nodes.yaml
 
 MI_VPN_BOT_TOKEN=123456:token
 NODE_MONITOR_TELEGRAM_CHAT_ID=123456789
+# or:
+NODE_MONITOR_TELEGRAM_CHAT_IDS=123456789,987654321
+NODE_MONITOR_TELEGRAM_POLLING_ENABLED=true
 
 PANEL_URL=https://remnawave.example.com
 RW_BEARER=...
@@ -67,13 +94,13 @@ unavailable.
 
 ```yaml
 nodes:
-  - name: pl
-    host: pl.orpheous.ru
-    remnawave_name: pl
+  - name: Poland
+    host: 153.76.122.197
+    remnawave_name: Poland
     ports:
-      - 80
-      - 2222
-      - 443
+      - name: fallback-http-port
+        host: pl.orpheous.ru
+        port: 80
     http_checks:
       - name: fallback-http
         url: http://pl.orpheous.ru/
