@@ -48,8 +48,7 @@ The compose file mounts `./ssh` read-only so checks can use SSH aliases like
 Deploy to `sh.ydx.ru1` from your Mac:
 
 ```bash
-cd /Users/zadkiel/apps/shredder-node-monitor
-./scripts/deploy.sh
+/Users/zadkiel/scripts/deploy-shredder-node-monitor.sh
 ```
 
 The script uploads project files, local `.env`, local `nodes.yaml`,
@@ -63,6 +62,13 @@ Default remote directory:
 
 ```text
 /home/stasrised/shredder-node-monitor
+```
+
+Override target directory if needed:
+
+```bash
+REMOTE_DIR=/opt/shredder-node-monitor \
+  /Users/zadkiel/scripts/deploy-shredder-node-monitor.sh sh.ydx.ru1
 ```
 
 ## Environment
