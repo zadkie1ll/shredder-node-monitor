@@ -61,6 +61,8 @@ class Settings:
     run_once: bool
     run_on_start: bool
     nodes_config_path: Path
+    node_source: str
+    remnawave_fail_on_disconnected: bool
     telegram_bot_token: str | None
     telegram_chat_ids: list[int]
     remnawave_url: str | None
@@ -76,6 +78,11 @@ class Settings:
             run_on_start=_get_bool("NODE_MONITOR_RUN_ON_START", True),
             nodes_config_path=Path(
                 _get_str("NODE_MONITOR_NODES_CONFIG", "nodes.yaml") or "nodes.yaml"
+            ),
+            node_source=_get_str("NODE_MONITOR_NODE_SOURCE", "remnawave") or "remnawave",
+            remnawave_fail_on_disconnected=_get_bool(
+                "NODE_MONITOR_REMNAWAVE_FAIL_ON_DISCONNECTED",
+                True,
             ),
             telegram_bot_token=_get_first_str(
                 "NODE_MONITOR_TELEGRAM_BOT_TOKEN",

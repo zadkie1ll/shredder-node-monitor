@@ -18,7 +18,7 @@ class RemnawaveClient:
         self._nodes_endpoint = nodes_endpoint
         self._log = logging.getLogger(self.__class__.__name__)
 
-    async def fetch_nodes(self) -> tuple[dict[str, dict[str, Any]], str | None]:
+    async def fetch_node_list(self) -> tuple[list[dict[str, Any]], str | None]:
         url = f"{self._base_url}{self._nodes_endpoint}"
         headers = {"Authorization": f"Bearer {self._bearer}"}
         try:
@@ -28,13 +28,22 @@ class RemnawaveClient:
                 payload = response.json()
         except Exception as exc:
             self._log.warning("failed to fetch Remnawave nodes: %s", exc)
-            return {}, f"{type(exc).__name__}: {exc}"
+            return [], f"{type(exc).__name__}: {exc}"
 
-        return _index_nodes(payload), None
+        return [
+            node for node in _extract_nodes(payload)
+            if isinstance(node, dict)
+        ], None
+
+    async def fetch_nodes(self) -> tuple[dict[str, dict[str, Any]], str | None]:
+        nodes, error = await self.fetch_node_list()
+        if error:
+            return {}, error
+        return _index_nodes(nodes), None
 
 
 def _index_nodes(payload: Any) -> dict[str, dict[str, Any]]:
-    nodes = _extract_nodes(payload)
+    nodes = payload if isinstance(payload, list) else _extract_nodes(payload)
     result: dict[str, dict[str, Any]] = {}
     for node in nodes:
         if not isinstance(node, dict):

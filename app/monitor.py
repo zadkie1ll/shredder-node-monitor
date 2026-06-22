@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from app.models import CheckResult
 from app.checks import NodeChecker
 from app.models import MonitorReport, NodeConfig, NodeReport
 from app.remnawave import RemnawaveClient
@@ -13,9 +14,11 @@ class Monitor:
         self,
         nodes: list[NodeConfig],
         remnawave_client: RemnawaveClient | None = None,
+        fail_on_remnawave_disconnected: bool = True,
     ) -> None:
         self._nodes = nodes
         self._remnawave_client = remnawave_client
+        self._fail_on_remnawave_disconnected = fail_on_remnawave_disconnected
         self._checker = NodeChecker()
         self._log = logging.getLogger(self.__class__.__name__)
 
@@ -38,6 +41,11 @@ class Monitor:
         self._log.info("checking node %s", node.name)
         checks = await self._checker.check_node(node)
         remnawave = _match_remnawave_node(node, remnawave_nodes)
+        if remnawave is not None:
+            checks = [
+                _remnawave_check(remnawave, self._fail_on_remnawave_disconnected),
+                *checks,
+            ]
         return NodeReport(
             node=node,
             ok=all(check.ok for check in checks),
@@ -56,3 +64,22 @@ def _match_remnawave_node(node: NodeConfig, remnawave_nodes: dict[str, dict]):
         if key and key.lower() in remnawave_nodes:
             return remnawave_nodes[key.lower()]
     return None
+
+
+def _remnawave_check(node: dict, fail_on_disconnected: bool) -> CheckResult:
+    disabled = bool(node.get("isDisabled"))
+    connected = node.get("isConnected")
+    connecting = node.get("isConnecting")
+    status_message = node.get("lastStatusMessage")
+    ok = not disabled
+    if fail_on_disconnected:
+        ok = ok and connected is True
+
+    detail = (
+        f"isConnected={connected} "
+        f"isConnecting={connecting} "
+        f"isDisabled={disabled}"
+    )
+    if status_message:
+        detail += f" message={status_message}"
+    return CheckResult(name="remnawave", ok=ok, detail=detail)

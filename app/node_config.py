@@ -21,6 +21,19 @@ DEFAULT_SSH_COMMAND = (
 )
 
 
+def load_node_overrides(path: Path) -> dict[str, NodeConfig]:
+    if not path.exists():
+        return {}
+
+    nodes = load_nodes(path)
+    result: dict[str, NodeConfig] = {}
+    for node in nodes:
+        for key in (node.name, node.host, node.remnawave_name, node.remnawave_uuid):
+            if key:
+                result[key.lower()] = node
+    return result
+
+
 def load_nodes(path: Path) -> list[NodeConfig]:
     if not path.exists():
         raise FileNotFoundError(f"nodes config not found: {path}")
@@ -49,10 +62,66 @@ def _parse_node(raw: dict[str, Any]) -> NodeConfig:
         name=name,
         host=host,
         remnawave_name=_optional_str(raw, "remnawave_name"),
+        remnawave_uuid=_optional_str(raw, "remnawave_uuid"),
         ports=ports,
         http_checks=http_checks,
         ssh=ssh,
+        skip=bool(raw.get("skip", False)),
     )
+
+
+def nodes_from_remnawave(
+    remnawave_nodes: list[dict[str, Any]],
+    overrides: dict[str, NodeConfig] | None = None,
+) -> list[NodeConfig]:
+    overrides = overrides or {}
+    nodes: list[NodeConfig] = []
+
+    for raw in remnawave_nodes:
+        uuid = _raw_str(raw, "uuid")
+        name = _raw_str(raw, "name") or uuid or "unknown"
+        host = _raw_str(raw, "address") or _raw_str(raw, "host") or _raw_str(raw, "hostname")
+        if not host:
+            continue
+
+        override = _find_override(overrides, uuid, name, host)
+        if override and override.skip:
+            continue
+
+        node_port = _raw_int(raw, "port")
+        ports: list[PortCheckConfig] = []
+        if node_port:
+            ports.append(PortCheckConfig(name="remnanode-api", host=host, port=node_port))
+        for inbound_port in _extract_inbound_ports(raw):
+            if inbound_port != node_port:
+                ports.append(
+                    PortCheckConfig(
+                        name=f"inbound:{inbound_port}",
+                        host=host,
+                        port=inbound_port,
+                    )
+                )
+
+        http_checks: list[HttpCheckConfig] = []
+        ssh = SshCheckConfig()
+        if override:
+            ports = _merge_ports(ports, override.ports, default_host=host)
+            http_checks = override.http_checks
+            ssh = override.ssh
+
+        nodes.append(
+            NodeConfig(
+                name=name,
+                host=host,
+                remnawave_name=name,
+                remnawave_uuid=uuid,
+                ports=ports,
+                http_checks=http_checks,
+                ssh=ssh,
+            )
+        )
+
+    return nodes
 
 
 def _parse_port(raw: Any, default_host: str) -> PortCheckConfig:
@@ -93,6 +162,66 @@ def _parse_ssh(raw: dict[str, Any]) -> SshCheckConfig:
         timeout_seconds=int(raw.get("timeout_seconds", 20)),
         xray_required=bool(raw.get("xray_required", True)),
     )
+
+
+def _find_override(
+    overrides: dict[str, NodeConfig],
+    *keys: str | None,
+) -> NodeConfig | None:
+    for key in keys:
+        if key and key.lower() in overrides:
+            return overrides[key.lower()]
+    return None
+
+
+def _merge_ports(
+    generated: list[PortCheckConfig],
+    override_ports: list[PortCheckConfig],
+    default_host: str,
+) -> list[PortCheckConfig]:
+    result = list(generated)
+    existing = {(port.host or default_host, port.port) for port in result}
+    for port in override_ports:
+        host = port.host or default_host
+        if (host, port.port) in existing:
+            continue
+        result.append(port)
+        existing.add((host, port.port))
+    return result
+
+
+def _extract_inbound_ports(raw: dict[str, Any]) -> list[int]:
+    profile = raw.get("configProfile")
+    if not isinstance(profile, dict):
+        return []
+    inbounds = profile.get("activeInbounds")
+    if not isinstance(inbounds, list):
+        return []
+
+    ports: list[int] = []
+    for inbound in inbounds:
+        if isinstance(inbound, dict):
+            port = _raw_int(inbound, "port")
+            if port:
+                ports.append(port)
+    return sorted(set(ports))
+
+
+def _raw_str(raw: dict[str, Any], key: str) -> str | None:
+    value = raw.get(key)
+    if value in (None, ""):
+        return None
+    return str(value)
+
+
+def _raw_int(raw: dict[str, Any], key: str) -> int | None:
+    value = raw.get(key)
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _required_str(raw: dict[str, Any], key: str) -> str:

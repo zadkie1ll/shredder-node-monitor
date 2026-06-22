@@ -11,6 +11,11 @@ By default `NODE_MONITOR_RUN_ON_START=true`, so after the container starts it
 sends the first report immediately and only then waits
 `NODE_MONITOR_INTERVAL_SECONDS` before the next report.
 
+By default `NODE_MONITOR_NODE_SOURCE=remnawave`, so the service takes the node
+list from the Remnawave panel. `nodes.yaml` is only an optional override file:
+use it for SSH aliases, extra HTTP checks, special expected status codes, or
+`skip: true`.
+
 ## Run locally
 
 ```bash
@@ -41,6 +46,8 @@ aliases like `ru6` or `nodehost.pl`.
 ```env
 NODE_MONITOR_INTERVAL_SECONDS=3600
 NODE_MONITOR_RUN_ON_START=true
+NODE_MONITOR_NODE_SOURCE=remnawave
+NODE_MONITOR_REMNAWAVE_FAIL_ON_DISCONNECTED=true
 NODE_MONITOR_NODES_CONFIG=nodes.yaml
 
 MI_VPN_BOT_TOKEN=123456:token
@@ -56,7 +63,7 @@ If Remnawave API is not configured or the endpoint does not fit the panel
 version, node checks still run and the report marks the panel part as
 unavailable.
 
-## Node config
+## Node config overrides
 
 ```yaml
 nodes:
@@ -76,6 +83,14 @@ nodes:
       host: nodehost.pl
       xray_required: true
 ```
+
+When `NODE_MONITOR_NODE_SOURCE=remnawave`, each item in `nodes.yaml` is matched
+against Remnawave by `name`, `host`, `remnawave_name`, or `remnawave_uuid`.
+The generated node uses:
+
+- Remnawave `address` as the host;
+- Remnawave `port` as the node API TCP check;
+- ports from `configProfile.activeInbounds` as inbound TCP checks.
 
 `xray_required: true` means the SSH check fails if `xray=missing` is found.
 For a freshly added node before Remnawave pushes its inbound config, temporarily

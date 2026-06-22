@@ -1,11 +1,11 @@
 nodes:
-  - name: pl
-    host: pl.orpheous.ru
-    remnawave_name: pl
+  - name: Poland
+    host: 153.76.122.197
+    remnawave_name: Poland
     ports:
-      - 80
-      - 2222
-      - 443
+      - name: fallback-http-port
+        host: pl.orpheous.ru
+        port: 80
     http_checks:
       - name: fallback-http
         url: http://pl.orpheous.ru/
@@ -15,13 +15,13 @@ nodes:
       host: nodehost.pl
       xray_required: true
 
-  - name: ru6
-    host: ru6.orpheous.ru
-    remnawave_name: ru6
+  - name: YDX CDN #1
+    host: 201.51.9.71
+    remnawave_name: YDX CDN #1
     ports:
-      - 80
-      - 2222
-      - 443
+      - name: fallback-http-port
+        host: ru6.orpheous.ru
+        port: 80
     http_checks:
       - name: fallback-http
         url: http://ru6.orpheous.ru/

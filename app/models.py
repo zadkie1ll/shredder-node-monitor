@@ -35,9 +35,11 @@ class NodeConfig:
     name: str
     host: str
     remnawave_name: str | None = None
+    remnawave_uuid: str | None = None
     ports: list[PortCheckConfig] = field(default_factory=list)
     http_checks: list[HttpCheckConfig] = field(default_factory=list)
     ssh: SshCheckConfig = field(default_factory=SshCheckConfig)
+    skip: bool = False
 
 
 @dataclass(frozen=True)

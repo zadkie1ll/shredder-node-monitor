@@ -21,8 +21,15 @@ class TelegramNotifier:
 
     async def send(self, text: str) -> int:
         sent = 0
+        chunks = _split_message(text)
         for chat_id in self._chat_ids:
-            if await asyncio.to_thread(self._send_sync, chat_id, text):
+            chat_ok = True
+            for index, chunk in enumerate(chunks, start=1):
+                if len(chunks) > 1:
+                    chunk = f"<b>Part {index}/{len(chunks)}</b>\n\n{chunk}"
+                ok = await asyncio.to_thread(self._send_sync, chat_id, chunk)
+                chat_ok = chat_ok and ok
+            if chat_ok:
                 sent += 1
         return sent
 
@@ -49,3 +56,37 @@ class TelegramNotifier:
         except URLError:
             self._log.exception("telegram send failed")
             return False
+
+
+def _split_message(text: str, limit: int = 3600) -> list[str]:
+    if len(text) <= limit:
+        return [text]
+
+    chunks: list[str] = []
+    current: list[str] = []
+    current_len = 0
+    for block in text.split("\n\n"):
+        block_len = len(block) + 2
+        if current and current_len + block_len > limit:
+            chunks.append("\n\n".join(current))
+            current = []
+            current_len = 0
+
+        if block_len > limit:
+            lines = block.splitlines()
+            for line in lines:
+                line_len = len(line) + 1
+                if current and current_len + line_len > limit:
+                    chunks.append("\n".join(current))
+                    current = []
+                    current_len = 0
+                current.append(line)
+                current_len += line_len
+            continue
+
+        current.append(block)
+        current_len += block_len
+
+    if current:
+        chunks.append("\n\n".join(current))
+    return chunks
