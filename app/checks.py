@@ -60,19 +60,54 @@ class NodeChecker:
         host = node.ssh.host or node.host
         command = node.ssh.command or "true"
         started = time.monotonic()
+        attempts: list[str] = []
+        for target in _ssh_targets(host, node.ssh.users):
+            result = await self._run_ssh_target(
+                target=target,
+                command=command,
+                timeout_seconds=node.ssh.timeout_seconds,
+                xray_required=node.ssh.xray_required,
+            )
+            attempts.append(f"{target}: {result.detail}")
+            if result.ok:
+                return CheckResult(
+                    name=f"ssh:{target}",
+                    ok=True,
+                    detail=_compact(
+                        f"target={target}\n{result.detail}",
+                        self._detail_limit,
+                    ),
+                    latency_ms=_elapsed_ms(started),
+                )
+
+        return CheckResult(
+            name=f"ssh:{host}",
+            ok=False,
+            detail=_compact("\n".join(attempts), self._detail_limit),
+            latency_ms=_elapsed_ms(started),
+        )
+
+    async def _run_ssh_target(
+        self,
+        target: str,
+        command: str,
+        timeout_seconds: int,
+        xray_required: bool,
+    ) -> CheckResult:
+        started = time.monotonic()
         ssh_args = self._ssh_file_args()
         process = await asyncio.create_subprocess_exec(
             "ssh",
             *ssh_args,
             "-o",
-            f"ConnectTimeout={min(node.ssh.timeout_seconds, 10)}",
+            f"ConnectTimeout={min(timeout_seconds, 10)}",
             "-o",
             "BatchMode=yes",
             "-o",
             "StrictHostKeyChecking=accept-new",
             "-o",
             "UserKnownHostsFile=/tmp/shredder-node-monitor-known-hosts",
-            host,
+            target,
             command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -80,15 +115,15 @@ class NodeChecker:
         try:
             stdout, stderr = await asyncio.wait_for(
                 process.communicate(),
-                timeout=node.ssh.timeout_seconds,
+                timeout=timeout_seconds,
             )
         except asyncio.TimeoutError:
             process.kill()
             await process.communicate()
             return CheckResult(
-                name=f"ssh:{host}",
+                name=f"ssh:{target}",
                 ok=False,
-                detail=f"timeout after {node.ssh.timeout_seconds}s",
+                detail=f"timeout after {timeout_seconds}s",
                 latency_ms=_elapsed_ms(started),
             )
 
@@ -96,10 +131,10 @@ class NodeChecker:
         err = stderr.decode(errors="replace").strip()
         combined = "\n".join(part for part in (out, err) if part)
         ok = process.returncode == 0
-        if node.ssh.xray_required and "xray=missing" in combined:
+        if xray_required and "xray=missing" in combined:
             ok = False
         return CheckResult(
-            name=f"ssh:{host}",
+            name=f"ssh:{target}",
             ok=ok,
             detail=_compact(combined or f"exit={process.returncode}", self._detail_limit),
             latency_ms=_elapsed_ms(started),
@@ -179,6 +214,12 @@ def _compact(value: str, limit: int = 500) -> str:
     if len(value) <= limit:
         return value
     return value[: limit - 1] + "…"
+
+
+def _ssh_targets(host: str, users: tuple[str, ...]) -> list[str]:
+    if "@" in host:
+        return [host]
+    return [f"{user}@{host}" for user in users]
 
 
 def _copy_ssh_file(source: Path, target: Path, mode: int) -> Path | None:

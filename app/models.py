@@ -25,6 +25,7 @@ class HttpCheckConfig:
 class SshCheckConfig:
     enabled: bool = False
     host: str | None = None
+    users: tuple[str, ...] = ("root", "stasrised")
     command: str | None = None
     timeout_seconds: int = 20
     xray_required: bool = True

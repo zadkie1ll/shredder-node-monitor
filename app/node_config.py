@@ -10,14 +10,18 @@ from app.models import HttpCheckConfig, NodeConfig, PortCheckConfig, SshCheckCon
 
 DEFAULT_SSH_COMMAND = (
     "set -e; "
-    "docker inspect -f 'remnanode={{.State.Status}} restarts={{.RestartCount}}' "
+    "DOCKER=docker; "
+    "if ! docker ps >/dev/null 2>&1 && command -v sudo >/dev/null 2>&1; then "
+    "DOCKER='sudo docker'; fi; "
+    "$DOCKER inspect -f 'remnanode={{.State.Status}} restarts={{.RestartCount}}' "
     "remnanode; "
-    "if docker exec remnanode sh -c 'pgrep -x xray >/dev/null || "
+    "if $DOCKER exec remnanode sh -c 'pgrep -x xray >/dev/null || "
     "pgrep -x rw-core >/dev/null' >/dev/null 2>&1 || "
     "pgrep -x xray >/dev/null || pgrep -x rw-core >/dev/null; then "
     "echo xray=running; else echo xray=missing; fi; "
-    "docker exec remnanode sh -c 'supervisorctl status 2>/dev/null || true'; "
-    "ss -lntp | grep -E ':(80|443|9000|2222)\\b' || true"
+    "$DOCKER exec remnanode sh -c 'supervisorctl status 2>/dev/null || true'; "
+    "(ss -lntp 2>/dev/null || sudo ss -lntp 2>/dev/null || true) | "
+    "grep -E ':(80|443|9000|2222)\\b' || true"
 )
 
 
@@ -104,7 +108,7 @@ def nodes_from_remnawave(
                 )
 
         http_checks: list[HttpCheckConfig] = []
-        ssh = SshCheckConfig()
+        ssh = SshCheckConfig(enabled=True)
         if override:
             if override.ignore_generated_ports:
                 ignored = set(override.ignore_generated_ports)
@@ -173,10 +177,22 @@ def _parse_ssh(raw: dict[str, Any]) -> SshCheckConfig:
     return SshCheckConfig(
         enabled=bool(raw.get("enabled", False)),
         host=_optional_str(raw, "host"),
+        users=_parse_users(raw.get("users")),
         command=_optional_str(raw, "command") or DEFAULT_SSH_COMMAND,
         timeout_seconds=int(raw.get("timeout_seconds", 20)),
         xray_required=bool(raw.get("xray_required", True)),
     )
+
+
+def _parse_users(raw: Any) -> tuple[str, ...]:
+    if raw in (None, ""):
+        return ("root", "stasrised")
+    if not isinstance(raw, list):
+        raise ValueError("ssh.users must be a list")
+    users = tuple(str(item).strip() for item in raw if str(item).strip())
+    if not users:
+        raise ValueError("ssh.users must not be empty")
+    return users
 
 
 def _find_override(

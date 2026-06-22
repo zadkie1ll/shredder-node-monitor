@@ -13,6 +13,9 @@ nodes:
     ssh:
       enabled: true
       host: nodehost.pl
+      users:
+        - root
+        - stasrised
       xray_required: true
 
   - name: YDX CDN #1
@@ -31,4 +34,7 @@ nodes:
     ssh:
       enabled: true
       host: ru6
+      users:
+        - root
+        - stasrised
       xray_required: true
