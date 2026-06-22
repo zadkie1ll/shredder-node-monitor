@@ -70,7 +70,6 @@ def _match_remnawave_node(node: NodeConfig, remnawave_nodes: dict[str, dict]):
 def _remnawave_check(node: dict, fail_on_disconnected: bool) -> CheckResult:
     disabled = bool(node.get("isDisabled"))
     connected = node.get("isConnected")
-    connecting = node.get("isConnecting")
     status_message = node.get("lastStatusMessage")
     ok = not disabled
     severity = "error"
@@ -78,11 +77,7 @@ def _remnawave_check(node: dict, fail_on_disconnected: bool) -> CheckResult:
         ok = False
         severity = "warning"
 
-    detail = (
-        f"isConnected={connected} "
-        f"isConnecting={connecting} "
-        f"isDisabled={disabled}"
-    )
+    detail = f"panel status={_panel_status(node)}"
     if status_message:
         detail += f" message={status_message}"
     return CheckResult(
@@ -91,3 +86,13 @@ def _remnawave_check(node: dict, fail_on_disconnected: bool) -> CheckResult:
         detail=detail,
         severity=severity,
     )
+
+
+def _panel_status(node: dict) -> str:
+    if node.get("isDisabled"):
+        return "disabled"
+    if node.get("isConnected"):
+        return "connected"
+    if node.get("isConnecting"):
+        return "connecting"
+    return "disconnected"

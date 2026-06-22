@@ -61,10 +61,8 @@ def format_node_detail(
 
     if report.remnawave:
         lines.extend(["", "<b>Panel</b>"])
+        lines.append(f"Status: <code>{escape(_panel_status(report.remnawave))}</code>")
         for key in (
-            "isConnected",
-            "isConnecting",
-            "isDisabled",
             "lastStatusMessage",
             "xrayVersion",
             "nodeVersion",
@@ -156,22 +154,25 @@ def _check_icon(check) -> str:
 def _remnawave_short(value: dict[str, Any] | None) -> str:
     if not value:
         return ""
-    connected = value.get("isConnected")
-    connecting = value.get("isConnecting")
     users_online = value.get("usersOnline")
-    parts = [f"panel connected={connected}"]
-    if connecting:
-        parts.append("connecting=true")
+    parts = [f"panel {_panel_status(value)}"]
     if users_online is not None:
         parts.append(f"online={users_online}")
     return "<code>" + escape(", ".join(parts)) + "</code>"
 
 
+def _panel_status(value: dict[str, Any]) -> str:
+    if value.get("isDisabled"):
+        return "disabled"
+    if value.get("isConnected"):
+        return "connected"
+    if value.get("isConnecting"):
+        return "connecting"
+    return "disconnected"
+
+
 def _field_name(key: str) -> str:
     names = {
-        "isConnected": "Connected",
-        "isConnecting": "Connecting",
-        "isDisabled": "Disabled",
         "lastStatusMessage": "Last message",
         "xrayVersion": "Xray",
         "nodeVersion": "Remnanode",
