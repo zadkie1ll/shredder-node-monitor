@@ -99,7 +99,13 @@ class TelegramBotApi:
                 self._log.warning("telegram %s failed: %s", method, body)
                 return None
         except HTTPError as exc:
-            self._log.warning("telegram %s failed: HTTP %s", method, exc.code)
+            body = exc.read().decode("utf-8", errors="replace")
+            self._log.warning(
+                "telegram %s failed: HTTP %s body=%s",
+                method,
+                exc.code,
+                body[:1000],
+            )
             return None
         except URLError:
             self._log.exception("telegram %s failed", method)
