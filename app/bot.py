@@ -70,12 +70,6 @@ class NodeMonitorBot:
                 ),
                 message_thread_id=self._message_thread_id,
             )
-        else:
-            await self._api.send_message(
-                chat_id=chat_id,
-                text="Напиши /nodes, чтобы выбрать сервер для диагностики.",
-                message_thread_id=self._message_thread_id,
-            )
 
     async def _handle_callback(self, callback: dict) -> None:
         callback_id = callback.get("id")

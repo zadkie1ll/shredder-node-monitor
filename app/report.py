@@ -38,7 +38,6 @@ def format_report(report: MonitorReport, tz_name: str = "Europe/Moscow") -> str:
         for node_report in nodes:
             lines.append(_format_node_summary(node_report))
 
-    lines.extend(["", "Use <b>/nodes</b> to open per-node diagnostics."])
     return "\n".join(lines)
 
 
